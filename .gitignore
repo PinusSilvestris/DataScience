@@ -45,3 +45,6 @@ $RECYCLE.BIN/
 Network Trash Folder
 Temporary Items
 .apdisk
+.idea
+R/KalmanFilter/KalmanFilter.html
+R/DataTableVsDataFrame/What_is_the_difference_between_data.table_and_data.frame_in_R.html

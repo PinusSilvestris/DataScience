@@ -1,0 +1,118 @@
+---
+output: html_document
+---
+
+If you start using R one of the first things you will notice is that you can have many data structures like <code>data.table</code>, <code>data.frame</code> or <code>matrix</code>.
+
+The natural question you may ask if what's the difference, which one should I use. I this post I will comment the difference between <code>data.table</code> and <code>data.frame</code>.
+
+<code>data.frame</code> is a part o base R distribution which means that you have access to it once you install R.
+<code>data.table</code> is a part of an enhanced data.frame and has to be installed as a separate package.
+
+If you look for a fast answer <code>data.table</code> is better than <code>data.frame</code>, but also it's behavior slightly different.
+
+```{r, warning=FALSE}
+# uncomment the following line if you did not install the package already
+# install.packages("data.table")
+require(data.table)
+```
+
+Now lets create a small and very simple <code>data.table</code> and <code>data.frame</code>.
+
+```{r}
+c1 <- c(1,2,3,4)
+c2 <- c(2,1,-1,0)
+
+cols <- cbind(c1,c2)
+
+df <- data.frame(cols)
+dt <- data.table(cols)
+
+print(df)
+print(dt)
+```
+
+As we can see the first difference is when you want to preview the data on R console, column names are the same but rows are presented with colons for <code>data.table</code> and without for  <code>data.frame</code>.
+
+If you followed any R tutorial you should now how to subset a <code>data.frame</code> - just use <code>[rows, columns]</code>. So if you want to select only the first column simply type <code>df[,1]</code>. Lets see what happens if we do this with both data strucutres.
+
+```{r}
+df[,1] 
+
+dt[,1]
+dt[,"c1"]
+dt[,"foo bar"]
+```
+
+
+Now the question is if  <code>data.table</code> is just like  <code>data.frame</code> why <code>dt[,1]</code> doesn't work. The answer is simple the second argument for <code>data.table</code> is not the same as for  <code>data.frame</code>.
+
+More information is availiable her [data.table FAQ](https://cran.r-project.org/web/packages/data.table/vignettes/datatable-faq.pdf).
+
+If you want to select a subset of columns from <code>data.table</code> you can select them directly using name and <code>$</code>, using just name but not as a string or using column number but with additional parameter.
+
+
+```{r}
+
+dt$c1                 # select using $ and name
+dt[,c1]               # select using name
+dt[,1, with=FALSE]    # select using col number
+
+```
+
+The other diference is that <code>data.table</code> passes data as refrence (yes! as refrence in R).
+Lets turn on memory tracing in R and see what happenes.
+
+```{r}
+
+df1 <- data.frame(cols)
+tracemem(df1)
+
+df2 <- df1
+tracemem(df2)
+```
+
+So now we have two variables pointing to the same memory address, lets see what happenes when we change something in the data frame.
+
+```{r}
+df1$c1 <- 1
+```
+
+As you can see a <code>data.frame</code> has been copied and only the first one has been modified.
+
+```{r}
+df1
+df2
+
+```
+
+Now lets do the same with <code>data.table</code>.
+
+```{r}
+dt1 <- data.table(cols)
+tracemem(dt1)
+dt2 <- dt1
+tracemem(dt2)
+
+dt1[,c1:=1]                                   # First modification: set the column to 1
+```
+
+As you can see it looks like that data were not copied, and both varaibles have been modified.
+
+```{r}
+print(dt1)
+print(dt2)
+```
+
+Indeed both <code>dt1,dt2</code> are the same. Lets modify the data using another approach using <code><-</code>.
+
+```{r}
+dt1$c1 <- round(runif(nrow(dt1),1,10),0)      # Second modification: set the column to random numbers
+```
+
+As you can see now we have a copy of the data and only one data table has been changed.
+
+```{r}
+print(dt1)
+print(dt2)
+```
