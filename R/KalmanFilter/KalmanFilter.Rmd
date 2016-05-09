@@ -1,5 +1,5 @@
 ---
-title: "KalmanFilters"
+title: "Kalman Filters"
 author: "Krzysztof Suwada"
 date: "29 kwietnia 2016"
 output: 
@@ -9,14 +9,17 @@ output:
 ```{r}
 # http://www.magesblog.com/2015/01/kalman-filter-example-visualised-with-r.html
 # http://www.quant-econ.net/jl/kalman.html
+# http://www.rmki.kfki.hu/~banmi/elte/Bishop%20-%20Pattern%20Recognition%20and%20Machine%20Learning.pdf, page 93
+# https://en.wikipedia.org/wiki/Woodbury_matrix_identity
 ```
 ```{r echo=FALSE, warning=FALSE, message=FALSE}
 source(file = "KalmanScript.R")
 ```
 
+### Kalman filter###
 This document is a intorduction to State Space Models (Unobserved Components Model). We focus on Kalman Filters.
 
-###Kalman Filter we define as###
+Kalman Filter we define as
 
 $$
 \begin{aligned}
@@ -49,7 +52,7 @@ $$P_0 = \left[\begin{array}{cc}
 \right]$$
 
 ```{r echo=FALSE}
-# print(g1)
+print(g1)
 ```
 
 Given the prior distribution of $X_1$ we want to calculate the condidional distribution of $Y_1|X_1$ using measurement update equation. Given that and the distribution of $V_t \sim N(0,R)$, we have that $Y_1 | X_1 = x_0 \sim N(G x_0, R)$
@@ -65,14 +68,14 @@ X|Y&  \sim &  N( &\Sigma [A^T N^{-1}(y-b)+M^{-1}m],& \Sigma)\\
 \end{aligned}$$
 
 ```{r echo=FALSE}
-# print(g2)
+print(g2)
 ```
 
 Now we want to calculate $X_f = X_1 | Y_1 \sim N(x_f, P_f)$. Given the fact that all distributions are normal we have the following formula
 
 $$\begin{aligned}
-x_f = (P_0^{-1} + G^T R^{-1} G)^{-1} (P_0^{-1} x_0 + G^T R^{-1} y_1)  \\ 
-P_f = (P_0^{-1} + G^T R^{-1} G)^{-1}
+x_f &=& (P_0^{-1} + G^T R^{-1} G)^{-1} (P_0^{-1} x_0 + G^T R^{-1} y_1)  \\ 
+P_f &=& (P_0^{-1} + G^T R^{-1} G)^{-1}
 \end{aligned}$$
 
 Now we apply Woodbury matrix identity 
@@ -81,13 +84,13 @@ $$\left( A + UCV\right)^{-1} = A^{-1}-A^{-1}U\left(C^{-1}+VA^{-1}U\right)^{-1}VA
 Using the formula for matrix inversion mentioned above we get the following.
 $$
 \begin{aligned}
-x_f = x_0+P_0 G^T (G P_0 G^T +R)^{-1} (y_1 - G x_0)  \\ 
-P_f = P_0 - P_0 G^T (G P_0 G^T + R)^{-1} G P_0
+x_f &=& x_0+P_0 G^T (G P_0 G^T +R)^{-1} (y_1 - G x_0)  \\ 
+P_f &=& P_0 - P_0 G^T (G P_0 G^T + R)^{-1} G P_0
 \end{aligned}
 $$
 
 ```{r echo=FALSE}
-# print(g3)
+print(g3)
 ```
 
 The last step is to calculate the unconditioned distribution of $X_1$. 
@@ -97,14 +100,54 @@ It is known that a linear transformation of gaussian vector remain gaussian. We 
 
 $\begin{align} 
 \mathbb{E} [A X_f + W] &= A \mathbb{E} [X_f] + \mathbb{E} [W]\\ 
-&= A \hat{x}_f\\ 
-&= A \hat{x_0} + A P_0 G^T (G P_0 G^T + R)^{-1}(y - G \hat x_0) 
+&= A x_f\\ 
+&= A x_0 + A P_0 G^T (G P_0 G^T + R)^{-1}(y - G x_0) 
 \end{align}$
 
 $\begin{align} 
-\operatorname{Var} [A X_f + W] &= A \operatorname{Var}[x_f] A^T + Q\\ 
+\operatorname{Var} [A X_f + W] &= A \operatorname{Var}[X_f] A^T + Q\\ 
 &= A P_f A^T + Q\\ 
-&= A P_0 A^T - A P_0 G^T (G P_0 G' + R)^{-1} G P_0 A^T + Q 
+&= A P_0 A^T - A P_0 G^T (G P_0 G^T + R)^{-1} G P_0 A^T + Q 
 \end{align}$
 
-The matrix $K_\Sigma = A P_0 G^T (G P_0 G^T + R)^{-1}$ is known as Kalman gain matrix.
+The matrix $K_\Sigma = A P_0 G^T (G P_0 G^T + R)^{-1}$ is known as Kalman gain.
+
+```{r echo=FALSE}
+print(g4)
+```
+
+
+So the general formulas to update the expected value and covariance matrix are as follows
+
+$\begin{align} 
+x_{t+1} &=& A x_t + K_\Sigma(y_t-G x_t) \\
+P_{t+1} &=& A P_t A^T - K_\Sigma G P_t A^T+Q \\
+K_\Sigma &=& A P_t G^T (G P_t G^T + R)^{-1}
+\end{align}$
+
+### Backward pass###
+
+Now we are going to use ,,all'' the information. Note that
+
+$(X_t, X_{t+1}) \sim N( 
+\left[\begin{array}{c} x_t\\ 
+x_{t+1}
+\end{array}\right],
+\left[\begin{array}{cc} P_t& P_t A^T\\ 
+A P_t& P_{t+1}
+\end{array}\right])$
+ 
+Recall that if
+$(Z_1, Z_2) \sim N( 
+\left[\begin{array}{c} \mu_1\\ 
+\mu_2
+\end{array}\right],
+\left[\begin{array}{cc} \Sigma_{11}& \Sigma_{12}\\ 
+\Sigma_{21}& \Sigma_{22}
+\end{array}\right])$
+
+then $Z_1 | Z_2=z_2 \sim N(\mu_1+\Sigma_{12}\Sigma_{22}^{-1}(z_2-\mu_2),\Sigma_{11}-\Sigma_{12}\Sigma_{22}^{-1}\Sigma_{21})$
+
+Now lets compute $X_t | X_{t+1}=x_{t+1} \sim N(\mu_1+\Sigma_{12}\Sigma_{22}^{-1}(z_2-\mu_2),\Sigma_{11}-\Sigma_{12}\Sigma_{22}^{-1}\Sigma_{21})$
+
+
