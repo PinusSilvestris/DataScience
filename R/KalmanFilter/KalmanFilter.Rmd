@@ -2,206 +2,109 @@
 title: "KalmanFilters"
 author: "Krzysztof Suwada"
 date: "29 kwietnia 2016"
-output: html_document
+output: 
+  html_document: 
+    theme: cerulean
 ---
+```{r}
+# http://www.magesblog.com/2015/01/kalman-filter-example-visualised-with-r.html
+# http://www.quant-econ.net/jl/kalman.html
+```
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+source(file = "KalmanScript.R")
+```
 
 This document is a intorduction to State Space Models (Unobserved Components Model). We focus on Kalman Filters.
 
-AS Kalman Filter we define:
+###Kalman Filter we define as###
 
-$$x_{t+1} = x_t$$
+$$
+\begin{aligned}
+X_{t+1} &=  A_t X_t + W_{t+1}, & W_t \sim N(0,Q),&\quad \text{Time update}\\
+Y_t &= G_t X_t + V_t, & V_t \sim N(0,R),&\quad \text{Measurement update}
+\end{aligned}
+$$
 
+Matrices $A_t, G_t, R, Q$ are assumed as known. Please note that for the calculation we have random variables denoted with capital letters $X_t, Y_t$ and values denoted as $x_t, y_t$.
 
-```{r}
-N <- 1000
-sigma_e <- 2
-sigma_eta <- 1
+###The algorithm###
+Input: Initial distribution of $X_1 \sim N(x_0,P_0)$, matrices $A_t, G_t, R, Q$, data $y_1, \ldots, y_T$.
 
-e_t <- rnorm(N, 0, sigma_e)
-eta_t <- rnorm(N, 0, sigma_eta)
+$T$ is the length of the data - time window.
 
-y_t <- cumsum(eta_t)
-y_t <- y_t + e_t
+With Kalman approach we can have three things
 
-plot(y_t)
-
-library(rucm)
-
-modelNile <- ucm(Nile~0, data = Nile, level = T)
-plot(Nile)
-
-modelNile
-lines(modelNile$s.level)
-
-a1 <- 0
-P1 <- 10^7 
-sigmasq_e <- 15099
-sigmasq_eta <- 1469.1
-
-P <- function(t)
-{
-  if(t==1) return(P1)
-  else
-  {
-    P_tmp <- P(t-1)
-    return(P_tmp-P_tmp^2/(P_tmp+sigmasq_e)+sigmasq_eta)
-  }
-}
-
-a <- function(t,y)
-{
-  if(t==1) return(a1)
-  else
-  {
-    a_tmp <- a(t-1,y)
-    P_tmp <- P(t-1)
-    return(a_tmp+P_tmp/(P_tmp+sigmasq_e)*(y[t-1]-a_tmp))
-  }
-}
-
-L <- function(t) return(sigmasq_e/(P(t)+sigmasq_e))
-
-P2 <- function(t) 
-{
-  if(t==1) return(L(1)*P(1)+sigmasq_eta)
-  else
-  return(L(t-1)*P(t-1)+sigmasq_eta)
-}
-
-VarV<- function(t)
-{
-  return(P(t)+sigmasq_e)
-}
-
-time <- 1:length(Nile)
-
-a_wrap <- function(t) return(a(t,Nile))
-
-NilePred_1 <- unlist(lapply(time, a_wrap))
-VarAlfa <- unlist(lapply(time, P))
-VarAlfa2 <- unlist(lapply(time, P2))
-
-df <- data.table(time, Nile,NilePred_1,VarAlfa,VarAlfa2)
-
-ggplot(df[2:100,]) + geom_line(aes(x=time, y = Nile, color = "Original")) + geom_line(aes(x=time, y = NilePred_1, color = "Prediction"))
-ggplot(df[2:100,])+geom_line(aes(x=time, y=VarAlfa))
-
-# Kalman filters ----------------------------------------------------------
-
-library(mnormt)
-library(dplyr)
-library(data.table)
-library(ggplot2)
-
-# x_{t+1} = A X_t + W   W ~ N(0,Q)
-# y_t = G x_t + V       V ~ N(0,R)    
-# x_1 ~ N(xhat, Sigma)
-# http://www.quant-econ.net/jl/kalman.html
-
-
-xhat <- c(0.2, -0.2)
-Sigma <- matrix(c(0.4, 0.3, 0.3, 0.45), ncol=2)
-y <- c(2.4, -1.9)
-
-A <- matrix(c(1.2, 0,
-              0, -0.2), ncol=2)
-G = diag(2) #identity
-
-Q <- 0.3 * Sigma 
-R <- 0.5 * Sigma
-
-PMIKalmanStep <- function(x,P, A, G, Q, R, y)
-{
-  
-  # Step 1
-  x_f <- x + P %*% t(G) %*% solve(G %*% P %*% t(G) + R) %*% (y - G %*% x)
-  P_f <- P - P %*% t(G) %*% solve(G %*% P %*% t(G) + R) %*% G %*% P
-
-  # Step 2
-  K <- A %*% P %*% t(G) %*% solve(G%*% P %*% t(G) + R)
-  x_new <- A %*% x + K %*% (y - G %*% x)
-  P_new <- A %*% P %*% t(A) - K %*% G %*% P %*% t(A) + Q
-  return(list(x_f = x_f, P_f = P_f, K = K, x_new = x_new, P_new = P_new)) 
-}
-
-#KalmanFilter <- function(x0, P0, A, G, Q, R, ydata)
-#{
-  ydata <- data.table(as.numeric(Nile))
-  Size <- nrow(ydata)
-  
-  
-  i = 1
-  dim <- 1
-  
-  x <- c(rep(0,dim))
-  P <- diag(dim)
-  
-  A <- diag(dim)
-  G = diag(dim) #identity
-  
-  Sigma <- diag(dim)
-  
-  Q <- 0.3 * Sigma 
-  R <- 0.5 * Sigma
-
-  matrix(2,1,1)
-  xt <- matrix(dim,1,Size)
-  Pt <- matrix(dim,dim,Size)
-
-filterted <- foreach(i=iter(1:Size),.combine = rbind) %do%
-{
-  y <- as.matrix(ydata[i])
-  result <- PMIKalmanStep(x,P, A, G, Q, R, y)
-  x <- result$x_new
-  P <- result$P_new
-
-  xt[,,t] <- as.matrix(x)
-  Pt[,,t] <- P
+* filtering - when we use information prior to the time $t, t-1, t-2,\ldots,0$.
+* smoothing - when we use all the information for the time window
+* prediction - when we want to predict the future values
     
-  print(i)
-  i<- i+1
-  return(x)
-}
+Please note that we know not the exact value but a probability distribution.
+Lets set the values as:
 
-# Step 1
-xhatf <- xhat + Sigma %*% t(G) %*% solve(G %*% Sigma %*% t(G) + R) %*% (y - G %*% xhat)
-Sigmaf <- Sigma - Sigma %*% t(G) %*% solve(G %*% Sigma %*% t(G) + R) %*% G %*% Sigma
+$$x_0 = (0.5, -0.5)$$
+$$P_0 = \left[\begin{array}{cc} 
+1 & 0.5\\ 
+0.5 & 0.5 
+\end{array} 
+\right]$$
 
-# Step 2
-K <- A %*% Sigma %*% t(G) %*% solve(G%*% Sigma %*% t(G) + R)
-xhatnew <- A %*% xhat + K %*% (y - G %*% xhat)
-Sigmanew <- A %*% Sigma %*% t(A) - K %*% G %*% Sigma %*% t(A) + Q
-
-#model <- PMIKalman(xhat,Sigma,A,G,Q,R,y)
-#model$x_f
-
-x1 <- seq(-4,4,0.01)
-x2 <- seq(-4,4,0.01)
-grid <- data.table(expand.grid(x1,x2))
-setnames(grid, c("x","y"))
-z1 <- dmnorm(grid,xhat,varcov = Sigma)
-z2 <- dmnorm(grid,c(2.3, -1.9),varcov = R)
-z3 <- dmnorm(grid,c(xhatf),varcov = Sigmaf)
-z4 <- dmnorm(grid,c(xhatnew),varcov = Sigmanew)
-
-grid <- data.table(grid,z1,z2,z3,z4)
-
-grid[,p1:=z1]
-grid[,p2:=max(z1,z2), by=1:nrow(grid)]
-grid[,p3:=max(z1,z2,z3), by=1:nrow(grid)]
-grid[,p4:=max(z1,z2,z3,z4), by=1:nrow(grid)]
-
-grid %>% ggplot(aes(x=x,y=y)) +geom_tile(aes(fill=p1))+scale_fill_distiller(palette="Spectral", na.value="white")
-grid %>% ggplot(aes(x=x,y=y)) +geom_tile(aes(fill=p2))+scale_fill_distiller(palette="Spectral", na.value="white")
-grid %>% ggplot(aes(x=x,y=y)) +geom_tile(aes(fill=p3))+scale_fill_distiller(palette="Spectral", na.value="white")
-grid %>% ggplot(aes(x=x,y=y)) +geom_tile(aes(fill=p4))+scale_fill_distiller(palette="Spectral", na.value="white")
-
+```{r echo=FALSE}
+# print(g1)
 ```
 
-You can also embed plots, for example:
+Given the prior distribution of $X_1$ we want to calculate the condidional distribution of $Y_1|X_1$ using measurement update equation. Given that and the distribution of $V_t \sim N(0,R)$, we have that $Y_1 | X_1 = x_0 \sim N(G x_0, R)$
 
-```{r, echo=FALSE}
-plot(cars)
+Given a marginal Gaussian distribution of $X$ and a conditional Gaussian distribution of $Y|X$ the marginal distribution of $Y$ and conditional $X|Y$ are given by
+
+$$\begin{aligned}
+X&    \sim &  N(& m, & M)  \\ 
+Y|X&  \sim &  N(&Ax+b,& N) \\
+Y &   \sim &  N(&Am+b,& N+AM^{-1}A^T) \\
+X|Y&  \sim &  N( &\Sigma [A^T N^{-1}(y-b)+M^{-1}m],& \Sigma)\\
+&&&\Sigma = \left(M^{-1}+A^TN^{-1}A \right)^{-1}
+\end{aligned}$$
+
+```{r echo=FALSE}
+# print(g2)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+Now we want to calculate $X_f = X_1 | Y_1 \sim N(x_f, P_f)$. Given the fact that all distributions are normal we have the following formula
+
+$$\begin{aligned}
+x_f = (P_0^{-1} + G^T R^{-1} G)^{-1} (P_0^{-1} x_0 + G^T R^{-1} y_1)  \\ 
+P_f = (P_0^{-1} + G^T R^{-1} G)^{-1}
+\end{aligned}$$
+
+Now we apply Woodbury matrix identity 
+$$\left( A + UCV\right)^{-1} = A^{-1}-A^{-1}U\left(C^{-1}+VA^{-1}U\right)^{-1}VA^{-1}$$
+ 
+Using the formula for matrix inversion mentioned above we get the following.
+$$
+\begin{aligned}
+x_f = x_0+P_0 G^T (G P_0 G^T +R)^{-1} (y_1 - G x_0)  \\ 
+P_f = P_0 - P_0 G^T (G P_0 G^T + R)^{-1} G P_0
+\end{aligned}
+$$
+
+```{r echo=FALSE}
+# print(g3)
+```
+
+The last step is to calculate the unconditioned distribution of $X_1$. 
+$$X_{t+1} = A X_t + W_{t+1} \mbox{, where } W_t \sim N(0, Q)$$
+
+It is known that a linear transformation of gaussian vector remain gaussian. We only have to calculate the mean and the variance.
+
+$\begin{align} 
+\mathbb{E} [A X_f + W] &= A \mathbb{E} [X_f] + \mathbb{E} [W]\\ 
+&= A \hat{x}_f\\ 
+&= A \hat{x_0} + A P_0 G^T (G P_0 G^T + R)^{-1}(y - G \hat x_0) 
+\end{align}$
+
+$\begin{align} 
+\operatorname{Var} [A X_f + W] &= A \operatorname{Var}[x_f] A^T + Q\\ 
+&= A P_f A^T + Q\\ 
+&= A P_0 A^T - A P_0 G^T (G P_0 G' + R)^{-1} G P_0 A^T + Q 
+\end{align}$
+
+The matrix $K_\Sigma = A P_0 G^T (G P_0 G^T + R)^{-1}$ is known as Kalman gain matrix.
